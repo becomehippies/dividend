@@ -64,9 +64,9 @@ contract BecomeHippiesDividend {
     
     receive() external payable {
         if (isFunding) {
-            _funding(msg.value, msg.sender);
+            addFunding(msg.value, msg.sender);
         } else {
-            _dividend(msg.value);
+            addDividend(msg.value);
         }
     }
     
@@ -151,6 +151,29 @@ contract BecomeHippiesDividend {
     function addSponsorship(address sender, address sponsorship) public {
         require(isFunding, "Funding completed");
         _sponsorships[sponsorship] = Sponsorship(sender, true);
+    }
+    
+    function addDividend(uint value) public payable {
+        require(value > 0, "Value is empty");
+        require(!isFunding, "Funding in progress");
+        dividend += value;
+        for (uint i = 0; i < _beneficiaries.length; i++) {
+            uint supply = beneficiariesSupply();
+            address user = _beneficiaries[i];
+            if (_balances[user] >= 10 * 10 ** decimals) {
+                uint amount = value * _balances[user] / supply;
+                payable(user).transfer(amount);
+                _dividends[user] += amount;
+            }
+        }
+    }
+    
+    function addFunding(uint value, address sender) public payable {
+        require(value > 0, "Value is empty");
+        require(value <= maxFundingAmount(), "Amount exceeded");
+        uint amount = _setFunding(value, sender);
+        totalSupply += amount;
+        _setBalance(sender, amount);
     }
     
     function transfer(address to, uint value) public returns (bool) {
@@ -240,28 +263,6 @@ contract BecomeHippiesDividend {
             _addresses[to] = true;
             _beneficiaries.push(to);
         }
-    }
-    
-    function _dividend(uint value) private {
-        require(value > 0, "Value is empty");
-        require(!isFunding, "Funding in progress");
-        dividend += value;
-        for (uint i = 0; i < _beneficiaries.length; i++) {
-            uint supply = beneficiariesSupply();
-            address user = _beneficiaries[i];
-            if (_balances[user] >= 10 * 10 ** decimals) {
-                uint amount = value * _balances[user] / supply;
-                payable(user).transfer(amount);
-                _dividends[user] += amount;
-            }
-        }
-    }
-    
-    function _funding(uint value, address sender) private {
-        require(value <= maxFundingAmount(), "Amount exceeded");
-        uint amount = _setFunding(value, sender);
-        totalSupply += amount;
-        _setBalance(sender, amount);
     }
     
     function _sponsorship(uint amount, address user) private {

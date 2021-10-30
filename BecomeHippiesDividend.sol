@@ -78,6 +78,50 @@ contract BecomeHippiesDividend {
         return _dividends[user];
     }
     
+    function dividendRate() public view returns (uint) {
+        return funding.amount / 6000;
+    }
+    
+    function fundingSupply() public view returns (uint) {
+        return isFunding ? _fundingRounds[_fundingIndex].supply : 0;
+    }
+    
+    function fundingPrice() public view returns (uint) {
+        return isFunding ? _fundingRounds[_fundingIndex].price : 0;
+    }
+    
+    function fundingRound() public view returns (uint) {
+        return isFunding ? _fundingIndex + 1 : 0;
+    }
+    
+    function fundingAmout(uint value) public view returns (uint) {
+        return isFunding ? _fundingAmount(value, _fundingIndex) : 0;
+    }
+    
+    function maxFundingAmount() public view returns (uint) {
+        if (!isFunding) {
+            return 0;
+        }
+        uint amount = 0;
+        for (uint8 i = _fundingIndex; i < fundingRounds; i++) {
+            amount += _fundingSupply(i) * _fundingPrice(i) / 10 ** decimals;
+        }
+        return amount;
+    }
+    
+    function hasSponsorship(address user) public view returns (bool) {
+        return _sponsorships[user].value;
+    }
+    
+    function beneficiariesSupply() public view returns (uint) {
+        uint supply = 0;
+        for (uint i = 0; i < _beneficiaries.length; i++) {
+            address user = _beneficiaries[i];
+            supply += _balances[user];
+        }
+        return supply;
+    }
+    
     function closeFunding(uint amount, bytes32 hash) public returns(bool) {
         require(_isOwner(), "Owner access");
         require(isFunding, "Funding completed");
@@ -104,43 +148,9 @@ contract BecomeHippiesDividend {
         return true;
     }
     
-    function hasSponsorship(address user) public view returns (bool) {
-        return _sponsorships[user].value;
-    }
-    
     function addSponsorship(address sender, address sponsorship) public {
+        require(isFunding, "Funding completed");
         _sponsorships[sponsorship] = Sponsorship(sender, true);
-    }
-    
-    function dividendPrecentage() public view returns (uint) {
-        return funding.amount / 6000;
-    }
-    
-    function fundingSupply() public view returns (uint) {
-        return isFunding ? _fundingRounds[_fundingIndex].supply : 0;
-    }
-    
-    function fundingPrice() public view returns (uint) {
-        return isFunding ? _fundingRounds[_fundingIndex].price : 0;
-    }
-    
-    function fundingRound() public view returns (uint) {
-        return _fundingIndex + 1;
-    }
-    
-    function fundingAmout(uint value) public view returns (uint) {
-        return isFunding ? _fundingAmount(value, _fundingIndex) : 0;
-    }
-    
-    function maxFundingAmount() public view returns (uint) {
-        if (!isFunding) {
-            return 0;
-        }
-        uint amount = 0;
-        for (uint8 i = _fundingIndex; i < fundingRounds; i++) {
-            amount += _fundingSupply(i) * _fundingPrice(i) / 10 ** decimals;
-        }
-        return amount;
     }
     
     function transfer(address to, uint value) public returns (bool) {
@@ -149,15 +159,6 @@ contract BecomeHippiesDividend {
         _balances[msg.sender] -= value;
         emit Transfer(msg.sender, to, value);
         return true;
-    }
-    
-    function beneficiariesSupply() public view returns (uint) {
-        uint supply = 0;
-        for (uint i = 0; i < _beneficiaries.length; i++) {
-            address user = _beneficiaries[i];
-            supply += _balances[user];
-        }
-        return supply;
     }
     
     function transferFrom(address from, address to, uint value) public returns (bool) {
@@ -211,6 +212,28 @@ contract BecomeHippiesDividend {
         return msg.sender == owner;
     }
     
+    function _fundingSupply(uint8 index) private view returns (uint) {
+        return _fundingRounds[index].supply;
+    }
+    
+    function _fundingPrice(uint8 index) private view returns (uint) {
+        return _fundingRounds[index].price;
+    }
+    
+    function _fundingAmount(uint value, uint8 index) private view returns (uint) {
+        uint price = _fundingPrice(index);
+        uint supply = _fundingSupply(index);
+        uint amount = value / price;
+        if (amount <= supply) {
+            return amount;
+        }
+        if (index > 1) {
+            return supply;
+        }
+        value = (amount - supply) * price;
+        return supply + _fundingAmount(value, index + 1);
+    }
+    
     function _setBalance(address to, uint value) private {
         _balances[to] += value;
          if (!_addresses[to] && to != owner && !_isContract(to)) {
@@ -219,7 +242,7 @@ contract BecomeHippiesDividend {
         }
     }
     
-    function _dividend(uint value) public {
+    function _dividend(uint value) private {
         require(value > 0, "Value is empty");
         require(!isFunding, "Funding in progress");
         dividend += value;
@@ -234,7 +257,7 @@ contract BecomeHippiesDividend {
         }
     }
     
-    function _funding(uint value, address sender) public {
+    function _funding(uint value, address sender) private {
         require(value <= maxFundingAmount(), "Amount exceeded");
         uint amount = _setFunding(value, sender);
         totalSupply += amount;
@@ -272,27 +295,5 @@ contract BecomeHippiesDividend {
         value = (amount - supply) / 10 ** decimals * price ;
         _fundingIndex++;
         return supply + _setFunding(value, sender);
-    }
-    
-    function _fundingSupply(uint8 index) private view returns (uint) {
-        return _fundingRounds[index].supply;
-    }
-    
-    function _fundingPrice(uint8 index) private view returns (uint) {
-        return _fundingRounds[index].price;
-    }
-    
-    function _fundingAmount(uint value, uint8 index) private view returns (uint) {
-        uint price = _fundingPrice(index);
-        uint supply = _fundingSupply(index);
-        uint amount = value / price;
-        if (amount <= supply) {
-            return amount;
-        }
-        if (index > 1) {
-            return supply;
-        }
-        value = (amount - supply) * price;
-        return supply + _fundingAmount(value, index + 1);
     }
 }

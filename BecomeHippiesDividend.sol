@@ -56,7 +56,7 @@ contract BecomeHippiesDividend {
         for (uint i = 0; i < fundingRounds; i++) {
             _fundingRounds.push(FundingRound(
                 (3 + i) * 10 ** 15, 
-                12000 * 10 ** decimals
+                (i + 1 == fundingRounds ? 36000 : 12000) * 10 ** decimals
             ));
         }
         owner = msg.sender;
@@ -169,7 +169,6 @@ contract BecomeHippiesDividend {
     }
     
     function addFunding(uint value, address sender) public payable {
-        require(value > 0, "Value is empty");
         require(value <= maxFundingAmount(), "Amount exceeded");
         uint amount = _setFunding(value, sender);
         totalSupply += amount;

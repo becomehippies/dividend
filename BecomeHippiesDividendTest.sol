@@ -1,7 +1,7 @@
 pragma solidity >=0.7.0 <0.9.0;
 import "remix_tests.sol"; // this import is automatically injected by Remix.
 import "remix_accounts.sol";
-import "./BecomeHippiesDividend.sol";
+import "../contracts/BecomeHippiesDividend.sol";
 
 contract BecomeHippiesDividendTest {
     
@@ -172,13 +172,10 @@ contract BecomeHippiesDividendTest {
     
     function testEndOfFunding() public {
         // 12 000 supply * 0.005 BNB = 60 BNB
-        instance.addFunding(getBNB(60000), msg.sender);
-        balances[msg.sender] += 12000 * 10 ** 18;
+        instance.addFunding(getBNB(180000), msg.sender);
+        balances[msg.sender] += 36000 * 10 ** 18;
         Assert.equal(instance.balanceOf(msg.sender), balances[msg.sender], "balance ok");
-        Assert.equal(instance.totalSupply(), 36000 * 10 ** 18 + sponsorshipSupply, "total supply ok");
-    }
-    
-    function testFundingCompleted() public {
+        Assert.equal(instance.totalSupply(), 60000 * 10 ** 18 + sponsorshipSupply, "total supply ok");
         try instance.addFunding(getBNB(1), msg.sender) {
             Assert.ok(false, 'Funding completed');
         } catch {
@@ -215,26 +212,6 @@ contract BecomeHippiesDividendTest {
         balances[account2] += amount;
         Assert.equal(instance.balanceOf(owner), balances[owner], "balance ok");
         Assert.equal(instance.balanceOf(account2), balances[account2], "balance ok");
-    }
-    
-    function testTransferFrom() public {
-        address account10 = getAccount(10);
-        uint amount = 12 * 10 ** 18;
-        uint taxe = amount * instance.transferPercentage() / 100;
-        uint added = 0;
-        uint supply = instance.beneficiariesSupply();
-        for (uint i = 0; i < accounts.length; i++) {
-            if (accounts[i] != msg.sender) {
-                balances[accounts[i]] += taxe * balances[accounts[i]] / supply;
-                added += taxe * balances[accounts[i]] / supply;
-            }
-        }
-        balances[instance.owner()] += taxe - added;
-        balances[account10] += amount - taxe;
-        balances[msg.sender] -= amount;
-        instance.transferFrom(msg.sender, account10, amount);
-        Assert.equal(instance.balanceOf(msg.sender), balances[msg.sender], "balance ok");
-        Assert.equal(instance.balanceOf(account10), balances[account10], "balance ok");
     }
     
     function testTotalSupply5() public {

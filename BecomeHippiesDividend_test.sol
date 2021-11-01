@@ -30,6 +30,7 @@ contract BecomeHippiesDividendTest {
         decimals = instance.decimals();
         fundingSupply = instance.fundingSupplyOfCurrentRound();
         owner = instance.owner();
+        addAccount(owner);
     }
     
     function addAccount(address account) private returns (bool) {
@@ -55,8 +56,8 @@ contract BecomeHippiesDividendTest {
         return amount * 10 ** 18;
     }
     
-    function getAmountFromBHD(uint supply, uint price) private returns (uint) {
-        return supply * getBNB(price) / 10 ** 18;
+    function getAmountFromBHD(uint value, uint price) private returns (uint) {
+        return value * price / 1000;
     }
     
     function testFunding() public {
@@ -128,16 +129,16 @@ contract BecomeHippiesDividendTest {
         address account5 = getAccount(5);
         instance.addFunding(amount, account5);
         balances[account5] += supply;
-        Assert.equal(instance.balanceOf(account5), supply, "balance ok");
+        Assert.equal(balances[account5], supply, "balance ok");
         
         Assert.equal(instance.fundingSupplyOfCurrentRound(), getBHD(1), "funding supply ok");
         
         address account12 = getAccount(12);
-        balances[account12] += getBHD(1000);
-        instance.addFunding(getBNB(4000), account12);
-        Assert.equal(instance.balanceOf(account12), getBHD(1000), "balance ok");
+        balances[account12] += getBHD(1001);
+        instance.addFunding(getBNB(4003), account12);
+        Assert.equal(instance.balanceOf(account12), balances[account12], "balance 12 ok");
         
-        Assert.equal(instance.fundingSupplyOfCurrentRound(), getBHD(11000) + getBHD(1), "funding supply ok");
+        Assert.equal(instance.fundingSupplyOfCurrentRound(), getBHD(11000), "funding supply ok");
         
         fundingSupply = instance.fundingSupplyOfCurrentRound();
     }
@@ -151,10 +152,10 @@ contract BecomeHippiesDividendTest {
     }
     
     function testEndOfFundingRound2() public {
-        // 12 000 supply * 0.004 BNB = 48 BNB - 4 BNB = 44 BNB + 1BHD
-        instance.addFunding(getBNB(44000) + getAmountFromBHD(getBHD(1), 4), msg.sender);
-        balances[msg.sender] += 11001 * 10 ** 18;
-        Assert.equal(instance.balanceOf(msg.sender), balances[msg.sender], "balance ok");
+        // 12 000 supply * 0.004 BNB = 48 BNB - 4 BNB = 44 BNB
+        instance.addFunding(getBNB(44000), owner);
+        balances[owner] += 11000 * 10 ** 18;
+        Assert.equal(instance.balanceOf(owner), balances[owner], "balance ok");
         Assert.equal(instance.totalSupply(), 24000 * 10 ** 18 + sponsorshipSupply, "total supply ok");
     }
     
@@ -163,8 +164,6 @@ contract BecomeHippiesDividendTest {
     }
     
     function testTransfer() public {
-        address owner = instance.owner();
-        addAccount(owner);
         address account2 = getAccount(2);
         uint amount = 12 * 10 ** 18;
         instance.transfer(account2, amount);

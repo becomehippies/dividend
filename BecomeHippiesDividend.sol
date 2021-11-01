@@ -264,14 +264,14 @@ contract BecomeHippiesDividend {
         uint price = _fundingPrice(index);
         uint supply = _fundingSupply(index);
         uint amount = value / price;
-        if (amount <= supply) {
-            return amount;
+        if (amount > supply) {
+            if (index == _fundingMaxIndex) {
+                return supply;
+            }
+            value = (amount - supply) * price;
+            return supply + _fundingAmount(value, index + 1);
         }
-        if (index > 1) {
-            return supply;
-        }
-        value = (amount - supply) * price;
-        return supply + _fundingAmount(value, index + 1);
+        return amount;
     }
     
     function _setBalance(address to, uint value) private {

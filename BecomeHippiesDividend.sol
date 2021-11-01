@@ -2,15 +2,14 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+
 contract BecomeHippiesDividend {
+    
+    AggregatorV3Interface private _feedBNBUSD;
     
     struct Dividend {
         uint amount;
-        bytes32 hash;
-    }
-    
-    struct Funding {
-        uint usd;
         bytes32 hash;
     }
     
@@ -20,7 +19,8 @@ contract BecomeHippiesDividend {
     }
     
     struct Sponsorship {
-        address user;
+        address account;
+        uint amount;
         bool value;
     }
     
@@ -28,11 +28,12 @@ contract BecomeHippiesDividend {
     mapping (address => uint) private _balances;
     mapping (address => uint) private _dividends;
     mapping (address => Sponsorship) private _sponsorships;
+    mapping (address => address[]) private _sponsorshipsAddresses;
     mapping (address => mapping (address => uint)) private _allowances;
     
     address[] private _beneficiaries;
     uint public dividend;
-    Funding public funding;
+    uint private fundingUSD;
     
     uint public totalSupply = 0;
     uint public decimals = 18;
@@ -58,6 +59,8 @@ contract BecomeHippiesDividend {
     event Transfer(address indexed from, address indexed to, uint value);
     
     constructor () {
+        //0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE
+        _feedBNBUSD = AggregatorV3Interface(0x2514895c72f50D8bd4B4F9b1110F0D6bD2c97526);
         for (uint i = _fundingIndex; i <= _fundingMaxIndex; i++) {
             _fundingRounds.push(FundingRound(
                 _fundingGetPrice(_fundingStartPrice + i), 
@@ -75,16 +78,35 @@ contract BecomeHippiesDividend {
         }
     }
     
-    function balanceOf(address user) public view returns (uint) {
-        return _balances[user];
+    function balanceOf(address account) public view returns (uint) {
+        return _balances[account];
     }
     
-    function dividendOf(address user) public view returns (uint) {
-        return _dividends[user];
+    function dividendOf(address account) public view returns (uint) {
+        return _dividends[account];
+    }
+    
+    function dividendPercentageOf(address account) public view returns (uint) {
+        if (_balances[account] < minAmountDividend) {
+            return 0;
+        }
+        return _balances[account] * 10 / _beneficiariesSupply(minAmountDividend);
+    }
+    
+    function sponsorshipOf(address account) public view returns (Sponsorship memory) {
+        return _sponsorships[account];
+    }
+    
+    function sponsorshipsOf(address account) public view returns (address[] memory) {
+        return _sponsorshipsAddresses[account];
+    }
+    
+    function hasSponsorship(address user) public view returns (bool) {
+        return _sponsorships[user].value;
     }
     
     function dividendPercentage() public view returns (uint) {
-        return funding.usd / 6000;
+        return isFunding ? _toUSD(address(this).balance) : fundingUSD / (6000 * 10 ** 8); // USD 8 decimals
     }
     
     function fundingStartPrice() public view returns (uint) {
@@ -122,56 +144,33 @@ contract BecomeHippiesDividend {
         return amount;
     }
     
-    function hasSponsorship(address user) public view returns (bool) {
-        return _sponsorships[user].value;
-    }
-    
-    function beneficiariesSupply(uint minAmount) public view returns (uint) {
-        uint supply = 0;
-        for (uint i = 0; i < _beneficiaries.length; i++) {
-            address user = _beneficiaries[i];
-            if (_balances[user] > minAmount)
-                supply += _balances[user];
-        }
-        return supply;
-    }
-    
-    function closeFunding(uint usd, bytes32 hash) public returns(bool) {
+    function endOfFunding() public returns (bool) {
         require(_isOwner(), "Owner access");
         require(isFunding, "Funding completed");
         isFunding = false;
         uint supply = totalSupply * 3 / 10 + airdropAmount;
         _balances[owner] += supply;
         totalSupply += supply;
-        funding = Funding(usd * _supplyDecimals, hash);
-        return true;
-    }
-    
-    function withdrawFunding() public returns(bool) {
-        require(_isOwner(), "Owner access");
-        uint amount = address(this).balance * 7 / 10;
-        payable(owner).transfer(amount);
-        return true;
-    }
-    
-    function withdraw() public returns(bool) {
-        require(_isOwner(), "Owner access");
         uint balance = address(this).balance;
-        require(balance > 0, "Contract balance is empty");
-        payable(owner).transfer(balance);
+        uint amount = balance * 7 / 10;
+        fundingUSD = _toUSD(amount);
+        payable(owner).transfer(amount);
+        withdraw();
         return true;
     }
     
-    function addSponsorship(address sender, address sponsorship) public {
+    function addSponsorship(address sender, address account) public {
         require(isFunding, "Funding completed");
-        _sponsorships[sponsorship] = Sponsorship(sender, true);
+        require(!hasSponsorship(account), "Account has sponsorship");
+        _sponsorships[account] = Sponsorship(sender, 0, true);
+        _sponsorshipsAddresses[sender].push(account);
     }
     
     function addDividend(uint value) public payable {
         require(value > 0, "Value is empty");
         require(!isFunding, "Funding in progress");
         dividend += value;
-        uint supply = beneficiariesSupply(minAmountDividend);
+        uint supply = _beneficiariesSupply(minAmountDividend);
         for (uint i = 0; i < _beneficiaries.length; i++) {
             address user = _beneficiaries[i];
             if (_balances[user] >= minAmountDividend) {
@@ -202,7 +201,7 @@ contract BecomeHippiesDividend {
         require(balanceOf(from) >= value, "Insufficient balance");
         _balances[from] -= value;
         if (from != owner) {
-            uint supply = beneficiariesSupply(0) - _balances[from];
+            uint supply = _beneficiariesSupply(0) - _balances[from];
             uint amount = value * transferPercentage / 100;
             uint added = 0;
             for (uint i = 0; i < _beneficiaries.length; i++) {
@@ -227,8 +226,12 @@ contract BecomeHippiesDividend {
         return true;
     }
     
-    function allowance(address from, address sender) public view returns (uint256) {
-        return _allowances[from][sender];
+    function withdraw() public returns(bool) {
+        require(_isOwner(), "Owner access");
+        uint balance = address(this).balance;
+        require(balance > 0, "Contract balance is empty");
+        payable(owner).transfer(balance);
+        return true;
     }
     
     function burn(uint value) public {
@@ -236,6 +239,15 @@ contract BecomeHippiesDividend {
         require(balanceOf(owner) >= value, "Insufficient balance");
         _balances[owner] -= value;
         totalSupply -= value;
+    }
+    
+    function allowance(address from, address sender) public view returns (uint256) {
+        return _allowances[from][sender];
+    }
+    
+    function _toUSD(uint amount) private view returns (uint) {
+        (,int price,,,) = _feedBNBUSD.latestRoundData();
+        return amount * uint(price) / 10 ** 18;
     }
     
     function _isContract(address value) private view returns (bool){
@@ -260,15 +272,25 @@ contract BecomeHippiesDividend {
         return _fundingRounds[index].price;
     }
     
+    function _beneficiariesSupply(uint minAmount) private view returns (uint) {
+        uint supply = 0;
+        for (uint i = 0; i < _beneficiaries.length; i++) {
+            address user = _beneficiaries[i];
+            if (_balances[user] > minAmount)
+                supply += _balances[user];
+        }
+        return supply;
+    }
+    
     function _fundingAmount(uint value, uint8 index) private view returns (uint) {
         uint price = _fundingPrice(index);
         uint supply = _fundingSupply(index);
-        uint amount = value / price;
+        uint amount = value * _supplyDecimals / price;
         if (amount > supply) {
             if (index == _fundingMaxIndex) {
                 return supply;
             }
-            value = (amount - supply) * price;
+            value = (amount - supply) / _supplyDecimals * price;
             return supply + _fundingAmount(value, index + 1);
         }
         return amount;
@@ -282,10 +304,11 @@ contract BecomeHippiesDividend {
         }
     }
     
-    function _sponsorship(uint amount, address user) private {
+    function _sponsorship(uint amount, Sponsorship memory sponsorship) private {
         amount = amount * sponsorshipPercentage / 100;
-        _balances[user] += amount;
+        _balances[sponsorship.account] += amount;
         totalSupply += amount;
+        sponsorship.amount += amount;
     }
     
     function _setFunding(uint value, address sender) private returns (uint) {
@@ -296,7 +319,7 @@ contract BecomeHippiesDividend {
         FundingRound storage round = _fundingRounds[_fundingIndex];
         if (amount > supply) {
             if (sponsorship.value) {
-                _sponsorship(supply, sponsorship.user);
+                _sponsorship(supply, sponsorship);
             }
             round.supply -= supply;
             if (_fundingIndex == _fundingMaxIndex) {
@@ -307,7 +330,7 @@ contract BecomeHippiesDividend {
             return supply + _setFunding(value, sender);
         }
         if (sponsorship.value) {
-            _sponsorship(amount, sponsorship.user);
+            _sponsorship(amount, sponsorship);
         }
         round.supply -= amount;
         return amount;

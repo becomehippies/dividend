@@ -1,13 +1,14 @@
 pragma solidity >=0.7.0 <0.9.0;
 import "remix_tests.sol"; // this import is automatically injected by Remix.
 import "remix_accounts.sol";
-import "../contracts/BecomeHippiesDividend.sol";
+import "../BecomeHippiesDividend.sol";
 
 contract BecomeHippiesDividendTest {
     
     BecomeHippiesDividend instance;
     
     mapping(address => uint) public balances;
+    mapping(address => uint) public dividends;
     mapping(address => bool) public accountsExist;
     
     struct Account {
@@ -17,14 +18,18 @@ contract BecomeHippiesDividendTest {
     
     address[] accounts;
     
+    uint burned;
     uint decimals;
     uint fundingSupply;
     uint sponsorshipSupply;
+    
+    address owner;
     
     function beforeAll() public {
         instance = new BecomeHippiesDividend();
         decimals = instance.decimals();
         fundingSupply = instance.fundingSupply();
+        owner = instance.owner();
     }
     
     function addAccount(address account) private returns (bool) {
@@ -117,11 +122,7 @@ contract BecomeHippiesDividendTest {
     }
     
     function testTotalSupply2() public {
-        uint balance;
-        for (uint i = 0; i < accounts.length; i++) {
-            balance += balances[accounts[i]];
-        }
-        Assert.equal(instance.totalSupply(), balance, "total supply ok");
+        _testTotalSupply();
     }
     
     function testNewFundingRound() public {
@@ -163,16 +164,12 @@ contract BecomeHippiesDividendTest {
     }
     
     function testTotalSupply3() public {
-        uint balance;
-        for (uint i = 0; i < accounts.length; i++) {
-            balance += balances[accounts[i]];
-        }
-        Assert.equal(instance.totalSupply(), balance, "total supply ok");
+        _testTotalSupply();
     }
     
     function testEndOfFunding() public {
-        // 12 000 supply * 0.005 BNB = 60 BNB
-        instance.addFunding(getBNB(180000), msg.sender);
+        // 36 000 supply * 0.006 BNB = 216 BNB
+        instance.addFunding(getBNB(216000), msg.sender);
         balances[msg.sender] += 36000 * 10 ** 18;
         Assert.equal(instance.balanceOf(msg.sender), balances[msg.sender], "balance ok");
         Assert.equal(instance.totalSupply(), 60000 * 10 ** 18 + sponsorshipSupply, "total supply ok");
@@ -187,19 +184,29 @@ contract BecomeHippiesDividendTest {
         address owner = instance.owner();
         addAccount(owner);
         uint totalSupply = instance.totalSupply();
-        balances[owner] = instance.balanceOf(owner);
+        balances[owner] = instance.balanceOf(owner) + (3000 * 10 ** 18);
         instance.closeFunding(36000, bytes32('0x0000000'));
-        Assert.equal(instance.dividendRate(), 6 * 10 ** 18, "dividend ok"); // 6%
+        Assert.equal(instance.dividendPercentage(), 6 * 10 ** 18, "dividend ok"); // 6%
         balances[owner] += totalSupply * 3 / 10;
         Assert.equal(instance.balanceOf(owner), balances[owner], "balance ok");
     }
     
     function testTotalSupply4() public {
-        uint balance;
+        _testTotalSupply();
+    }
+    
+    function testDividend() public {
+        uint amount = 12392 * 10 * 15;
+        instance.addDividend(amount);
+        uint min = instance.minAmountDividend();
+        uint supply = instance.beneficiariesSupply(min);
         for (uint i = 0; i < accounts.length; i++) {
-            balance += balances[accounts[i]];
+            address user = accounts[i];
+            if (balances[user] >= min && user != owner) {
+                dividends[user] += amount * balances[user] / supply;
+            }
+            Assert.equal(instance.dividendOf(user), dividends[user], "dividend ok");
         }
-        Assert.equal(instance.totalSupply(), balance, "total supply ok");
     }
     
     function testTransfer() public {
@@ -214,11 +221,75 @@ contract BecomeHippiesDividendTest {
         Assert.equal(instance.balanceOf(account2), balances[account2], "balance ok");
     }
     
+     function testTransferFrom() public {
+        address account10 = getAccount(10);
+        uint amount = 12 * 10 ** 18;
+        uint taxe = amount * instance.transferPercentage() / 100;
+        uint added = 0;
+        uint supply = instance.beneficiariesSupply(0) - balances[msg.sender];
+        for (uint i = 0; i < accounts.length; i++) {
+            if (accounts[i] != msg.sender && accounts[i] != owner) {
+                balances[accounts[i]] += taxe * balances[accounts[i]] / supply;
+                added += taxe * balances[accounts[i]] / supply;
+            }
+        }
+        burned += added - taxe;
+        balances[account10] += amount - taxe;
+        balances[msg.sender] -= amount;
+        instance.transferFrom(msg.sender, account10, amount);
+        Assert.equal(instance.balanceOf(msg.sender), balances[msg.sender], "balance ok");
+        Assert.equal(instance.balanceOf(account10), balances[account10], "balance ok");
+    }
+    
+    function testDividend2() public {
+        uint amount = 201362 * 10 * 15;
+        instance.addDividend(amount);
+        uint min = instance.minAmountDividend();
+        uint supply = instance.beneficiariesSupply(min);
+        for (uint i = 0; i < accounts.length; i++) {
+            address user = accounts[i];
+            if (balances[user] >= min && user != owner) {
+                dividends[user] += amount * balances[user] / supply;
+            }
+            Assert.equal(instance.dividendOf(user), dividends[user], "dividend ok");
+        }
+    }
+    
     function testTotalSupply5() public {
         uint balance;
         for (uint i = 0; i < accounts.length; i++) {
             balance += balances[accounts[i]];
         }
-        Assert.equal(instance.totalSupply() / 10 ** 15, balance / 10 ** 15, "total supply ok");
+        Assert.equal(instance.totalSupply(), balance, "total supply ok");
+    }
+    
+    function testBurn() public {
+        uint supply = instance.totalSupply();
+        instance.burn(123 * 10 ** 18);
+        Assert.equal(instance.totalSupply(), supply - (123 * 10 ** 18), "total supply ok");
+        balances[owner] -= 123 * 10 ** 18;
+        _testTotalSupply();
+    }
+    
+    function testDividend3() public {
+        uint amount = 109327 * 10 * 15;
+        instance.addDividend(amount);
+        uint min = instance.minAmountDividend();
+        uint supply = instance.beneficiariesSupply(min);
+        for (uint i = 0; i < accounts.length; i++) {
+            address user = accounts[i];
+            if (balances[user] >= min && user != owner) {
+                dividends[user] += amount * balances[user] / supply;
+            }
+            Assert.equal(instance.dividendOf(user), dividends[user], "dividend ok");
+        }
+    }
+    
+    function _testTotalSupply() private {
+        uint balance;
+        for (uint i = 0; i < accounts.length; i++) {
+            balance += balances[accounts[i]];
+        }
+        Assert.equal(instance.totalSupply(), balance, "total supply ok");
     }
 }

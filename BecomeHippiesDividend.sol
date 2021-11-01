@@ -44,7 +44,7 @@ contract BecomeHippiesDividend {
     
     bool public isFunding = true;
     uint8 private _fundingStartPrice = 3;
-    uint8 private _fundingMaxRound = 4;
+    uint8 private _fundingMaxIndex = 4;
     uint8 private _fundingIndex = 0;
     FundingRound[] private _fundingRounds;
     
@@ -58,7 +58,7 @@ contract BecomeHippiesDividend {
     event Transfer(address indexed from, address indexed to, uint value);
     
     constructor () {
-        for (uint i = _fundingIndex; i <= _fundingMaxRound; i++) {
+        for (uint i = _fundingIndex; i <= _fundingMaxIndex; i++) {
             _fundingRounds.push(FundingRound(
                 _fundingGetPrice(_fundingStartPrice + i), 
                 12000 * _supplyDecimals
@@ -92,7 +92,7 @@ contract BecomeHippiesDividend {
     }
     
     function fundingMaxRound() public view returns (uint) {
-        return _fundingMaxRound + 1;
+        return _fundingMaxIndex + 1;
     }
     
     function fundingSupply() public view returns (uint) {
@@ -116,7 +116,7 @@ contract BecomeHippiesDividend {
             return 0;
         }
         uint amount = 0;
-        for (uint8 i = _fundingIndex; i <= _fundingMaxRound; i++) {
+        for (uint8 i = _fundingIndex; i <= _fundingMaxIndex; i++) {
             amount += _fundingSupply(i) * _fundingPrice(i) / _supplyDecimals;
         }
         return amount;
@@ -176,7 +176,7 @@ contract BecomeHippiesDividend {
             address user = _beneficiaries[i];
             if (_balances[user] >= minAmountDividend) {
                 uint amount = value * _balances[user] / supply;
-                //payable(user).transfer(amount);
+                payable(user).transfer(amount);
                 _dividends[user] += amount;
             }
         }
@@ -198,7 +198,7 @@ contract BecomeHippiesDividend {
     }
     
     function transferFrom(address from, address to, uint value) public returns (bool) {
-        //require(allowance(from, msg.sender) >= value, "Insufficient allowance");
+        require(allowance(from, msg.sender) >= value, "Insufficient allowance");
         require(balanceOf(from) >= value, "Insufficient balance");
         _balances[from] -= value;
         if (from != owner) {
@@ -299,7 +299,7 @@ contract BecomeHippiesDividend {
                 _sponsorship(supply, sponsorship.user);
             }
             round.supply -= supply;
-            if (_fundingIndex == _fundingMaxRound) {
+            if (_fundingIndex == _fundingMaxIndex) {
                 return supply;
             }
              value = (amount - supply) / _supplyDecimals * price ;

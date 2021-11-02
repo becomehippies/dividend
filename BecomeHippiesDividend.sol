@@ -36,15 +36,18 @@ contract BecomeHippiesDividend {
     string public constant name = "Become Hippies Dividend";
     string public constant symbol = "BHD";
     uint8 private constant _fundingStartPrice = 3;
-    uint private constant _fundingPriceFactor = 1000;
+    uint private constant _fundingPriceDecimals = 3;
+    uint private constant _fundingPriceFactor = 10 ** _fundingPriceDecimals;
     uint8 private constant _fundingMaxIndex = 4;
     uint32 public constant sponsorshipPercentage = 25;
     uint32 public constant transferPercentage = 20;
     uint72 public constant fundingPercentage = 70;
     uint32 public constant fundingAddedPercentage = 30;
-    uint public constant minValueDividend = 100 * 10e17;
-    uint public constant airdropMaxSupply = 2500 * 10e17;
-    uint public constant fundingRoundSupply = 12000 * 10e17;
+    uint public constant minValueDividend = 100 * 10 ** decimals;
+    uint public constant airdropMaxSupply = 2500 * 10 ** decimals;
+    uint public constant fundingRoundSupply = 12000 * 10 ** decimals;
+    uint public constant fundingUSDtarget = 60000;
+    uint public constant dividendBasePercentage = 10;
     
     mapping (address => bool) private _addresses;
     mapping (address => uint) private _balances;
@@ -111,11 +114,13 @@ contract BecomeHippiesDividend {
     }
     
     function dividendPercentage() public view returns (uint) {
-        return _getFundingUSD() / 6 / 10e10;
+        // USD 8 decimals
+        return _getFundingUSD() / fundingUSDtarget / dividendBasePercentage / 10 ** 8;
     }
     
     function fundingUSD() public view returns (uint) {
-        return _getFundingUSD() / 10e7;
+        // USD 8 decimals
+        return _getFundingUSD() / 10 ** 8;
     }
     
     function fundingStartPrice() public pure returns (uint) {
@@ -302,7 +307,7 @@ contract BecomeHippiesDividend {
     }
     
     function _fundingGetPrice(uint value) private pure returns (uint) {
-        return value * 10e14;
+        return value * 10 ** (18 - _fundingPriceDecimals);
     }
     
     function _fundingSupply(uint8 index) private view returns (uint) {

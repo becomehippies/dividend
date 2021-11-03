@@ -3,6 +3,7 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 interface AggregatorV3Interface {
+    
     function latestRoundData() external view returns (
         uint80 roundId,
         int256 answer,
@@ -38,11 +39,11 @@ contract BecomeHippiesDividend {
     uint8 private constant _fundingStartPrice = 3;
     uint private constant _fundingPriceDecimals = 3;
     uint private constant _fundingPriceFactor = 10 ** _fundingPriceDecimals;
-    uint8 private constant _fundingMaxIndex = 4;
+    uint8 private constant _fundingRoundMaxIndex = 4;
     uint32 public constant sponsorshipPercentage = 25;
     uint32 public constant transferPercentage = 20;
-    uint72 public constant fundingPercentage = 70;
-    uint32 public constant fundingAddedPercentage = 30;
+    uint72 public constant fundsPercentage = 70;
+    uint32 public constant fundingAddSupplyPercentage = 30;
     uint public constant minValueDividend = 100 * 10 ** decimals;
     uint public constant airdropMaxSupply = 2500 * 10 ** decimals;
     uint public constant fundingRoundSupply = 12000 * 10 ** decimals;
@@ -59,11 +60,11 @@ contract BecomeHippiesDividend {
     address[] private _beneficiaries;
     
     uint public dividend;
-    uint private _fundingUSD;
+    uint private _fundsUSD;
     uint public totalSupply = 0;
     address public owner;
     bool public isFunding = true;
-    uint8 private _fundingIndex = 0;
+    uint8 private _fundingRoundIndex = 0;
     FundingRound[] private _fundingRounds;
     uint public airdropSupply = 0;
     
@@ -72,7 +73,7 @@ contract BecomeHippiesDividend {
     
     constructor () {
         _feedBNBUSD = AggregatorV3Interface(0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE);
-        for (uint i = _fundingIndex; i <= _fundingMaxIndex; i++) {
+        for (uint i = _fundingRoundIndex; i <= _fundingRoundMaxIndex; i++) {
             _fundingRounds.push(FundingRound(
                 _fundingStartPrice + i, 
                 fundingRoundSupply
@@ -83,9 +84,9 @@ contract BecomeHippiesDividend {
     
     receive() external payable {
         if (isFunding) {
-            addFunding(msg.value, msg.sender, msg.sender);
+            addFunds(msg.value, msg.sender, msg.sender);
         } else if (_isOwner()) {
-            addDividend(msg.value);
+            addDividends(msg.value);
         }
     }
     
@@ -113,11 +114,11 @@ contract BecomeHippiesDividend {
     }
     
     function dividendPercentage() public view returns (uint) {
-        return _getFundingUSD() / fundingUSDtarget / dividendBasePercentage / 10 ** 8;
+        return _getFundsUSD() / fundingUSDtarget / dividendBasePercentage / 10 ** 8;
     }
     
-    function fundingUSD() public view returns (uint) {
-        return _getFundingUSD() / 10 ** 8;
+    function fundsUSD() public view returns (uint) {
+        return _getFundsUSD() / 10 ** 8;
     }
     
     function fundingStartPrice() public pure returns (uint) {
@@ -125,27 +126,27 @@ contract BecomeHippiesDividend {
     }
     
     function fundingMaxRound() public pure returns (uint) {
-        return _fundingMaxIndex + 1;
+        return _fundingRoundMaxIndex + 1;
     }
     
     function fundingSupplyOfCurrentRound() public view returns (uint) {
-        return isFunding ? _fundingRounds[_fundingIndex].supply : 0;
+        return isFunding ? _fundingRounds[_fundingRoundIndex].supply : 0;
     }
     
     function fundingPriceOfCurrentRound() public view returns (uint) {
-        return isFunding ? _fundingGetPrice(_fundingRounds[_fundingIndex].price) : 0;
+        return isFunding ? _fundingGetPrice(_fundingRounds[_fundingRoundIndex].price) : 0;
     }
     
     function fundingCurrentRound() public view returns (uint) {
-        return isFunding ? _fundingIndex + 1 : 0;
+        return isFunding ? _fundingRoundIndex + 1 : 0;
     }
     
     function fundingValueFromBNB(uint value) public view returns (uint) {
-        return isFunding ? _fundingValueFromBNB(value, _fundingIndex) : 0;
+        return isFunding ? _fundingValueFromBNB(value, _fundingRoundIndex) : 0;
     }
     
     function fundingValue(uint value) public view returns (uint) {
-        return isFunding ? _fundingValue(value, _fundingIndex) : 0;
+        return isFunding ? _fundingValue(value, _fundingRoundIndex) : 0;
     }
     
     function fundingMaxCurrentValue() public view returns (uint) {
@@ -153,7 +154,7 @@ contract BecomeHippiesDividend {
             return 0;
         }
         uint amount = 0;
-        for (uint8 i = _fundingIndex; i <= _fundingMaxIndex; i++) {
+        for (uint8 i = _fundingRoundIndex; i <= _fundingRoundMaxIndex; i++) {
             amount += _fundingSupply(i) * _fundingPrice(i) / _fundingPriceFactor;
         }
         return amount;
@@ -161,7 +162,7 @@ contract BecomeHippiesDividend {
     
     function fundingMaxValue() public view returns (uint) {
         uint amount = 0;
-        for (uint8 i = 0; i <= _fundingMaxIndex; i++) {
+        for (uint8 i = 0; i <= _fundingRoundMaxIndex; i++) {
             amount += fundingRoundSupply * _fundingPrice(i) / _fundingPriceFactor;
         }
         return amount;
@@ -172,7 +173,7 @@ contract BecomeHippiesDividend {
             return 0;
         }
         uint supply = 0;
-        for (uint8 i = _fundingIndex; i <= _fundingMaxIndex; i++) {
+        for (uint8 i = _fundingRoundIndex; i <= _fundingRoundMaxIndex; i++) {
             supply += _fundingSupply(i);
         }
         return supply;
@@ -189,7 +190,7 @@ contract BecomeHippiesDividend {
     
     function maxSupply() public view returns (uint) {
         uint supply = fundingMaxSupply() + sponsorshipMaxSupply();
-        return supply + supply * fundingAddedPercentage / 100 + airdropMaxSupply;
+        return supply + supply * fundingAddSupplyPercentage / 100 + airdropMaxSupply;
     }
     
     function beneficiariesSupply() public view returns (uint) {
@@ -201,17 +202,17 @@ contract BecomeHippiesDividend {
         require(_isOwner(), "Owner access");
         isFunding = false;
         airdropSupply = airdropMaxSupply * totalSupply / maxSupply();
-        uint supply = totalSupply * fundingAddedPercentage / 100 + airdropSupply;
+        uint supply = totalSupply * fundingAddSupplyPercentage / 100 + airdropSupply;
         _balances[owner] += supply;
         totalSupply += supply;
-        uint value = _getCurrentFunding();
-        _fundingUSD = _toUSD(value);
+        uint value = _getCurrentFunds();
+        _fundsUSD = _toUSD(value);
         payable(owner).transfer(value);
         withdraw();
         return true;
     }
     
-    function addDividend(uint value) public payable {
+    function addDividends(uint value) public payable {
         require(value > 0, "Value is empty");
         require(!isFunding, "Funding in progress");
         dividend += value;
@@ -226,7 +227,7 @@ contract BecomeHippiesDividend {
         }
     }
     
-    function addFunding(uint value, address sender, address account) public payable {
+    function addFunds(uint value, address sender, address account) public payable {
         require(isFunding, "Funding completed");
         require(value <= fundingMaxCurrentValue(), "Value exceeded");
         if (!_sponsorships[sender].value && sender != account && _addresses[account] && !_isContract(account) && account != owner) {
@@ -246,15 +247,11 @@ contract BecomeHippiesDividend {
         return true;
     }
     
-    function _transferPercentage(uint value) private pure returns (uint) {
-        return value * transferPercentage / 100;
-    }
-    
     function transferFrom(address from, address to, uint value) public returns (bool) {
         require(allowance(from, msg.sender) >= value, "Insufficient allowance");
         require(balanceOf(from) >= value, "Insufficient balance");
-        if (from != owner) {
-            uint amount = _transferPercentage(value);
+        if (_addresses[from]) {
+            uint amount = value * transferPercentage / 100;
             require(balanceOf(from) >= value + amount, "Insufficient balance");
             uint supply = _beneficiariesSupply(0) - _balances[from];
             uint added = 0;
@@ -299,17 +296,17 @@ contract BecomeHippiesDividend {
         return _allowances[from][sender];
     }
     
-    function _toUSD(uint value) public view returns (uint) {
+    function _toUSD(uint value) private view returns (uint) {
         (,int price,,,) = _feedBNBUSD.latestRoundData();
         return value * uint(price);
     }
     
-    function _getFundingUSD() private view returns (uint) {
-        return isFunding ? _toUSD(_getCurrentFunding()) : _fundingUSD;
+    function _getFundsUSD() private view returns (uint) {
+        return isFunding ? _toUSD(_getCurrentFunds()) : _fundsUSD;
     }
     
-    function _getCurrentFunding() private view returns (uint) {
-        return address(this).balance * fundingPercentage / 100;
+    function _getCurrentFunds() private view returns (uint) {
+        return address(this).balance * fundsPercentage / 100;
     }
     
     function _isContract(address value) private view returns (bool){
@@ -349,7 +346,7 @@ contract BecomeHippiesDividend {
         uint supply = _fundingSupply(index);
         uint amount = value * _fundingPriceFactor / price;
         if (amount > supply) {
-            if (index == _fundingMaxIndex) {
+            if (index == _fundingRoundMaxIndex) {
                 return supply;
             }
             value -= supply * price / _fundingPriceFactor;
@@ -363,7 +360,7 @@ contract BecomeHippiesDividend {
         uint supply = _fundingSupply(index);
         if (value > supply) {
             uint amount = supply * price / _fundingPriceFactor;
-            if (index == _fundingMaxIndex) {
+            if (index == _fundingRoundMaxIndex) {
                 return amount;
             }
             return amount + _fundingValue(value - supply, index + 1);
@@ -387,21 +384,21 @@ contract BecomeHippiesDividend {
     }
     
     function _setFunding(uint value, address sender) private returns (uint) {
-        uint price = _fundingRounds[_fundingIndex].price;
-        uint supply = _fundingRounds[_fundingIndex].supply;
+        uint price = _fundingRounds[_fundingRoundIndex].price;
+        uint supply = _fundingRounds[_fundingRoundIndex].supply;
         uint amount = value * _fundingPriceFactor / price;
         Sponsorship storage sponsorship = _sponsorships[sender];
-        FundingRound storage round = _fundingRounds[_fundingIndex];
+        FundingRound storage round = _fundingRounds[_fundingRoundIndex];
         if (amount > supply) {
             if (sponsorship.value) {
                 _sponsorship(supply, sponsorship);
             }
             round.supply -= supply;
-            if (_fundingIndex == _fundingMaxIndex) {
+            if (_fundingRoundIndex == _fundingRoundMaxIndex) {
                 return supply;
             }
              value -= supply * price / _fundingPriceFactor;
-            _fundingIndex++;
+            _fundingRoundIndex++;
             return supply + _setFunding(value, sender);
         }
         if (sponsorship.value) {
@@ -409,7 +406,7 @@ contract BecomeHippiesDividend {
         }
         round.supply -= amount;
         if (round.supply == 0) {
-            _fundingIndex++;
+            _fundingRoundIndex++;
         }
         return amount;
     }

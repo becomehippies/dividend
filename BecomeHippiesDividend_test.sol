@@ -64,11 +64,11 @@ contract BecomeHippiesDividendTest {
         
         addAccount(msg.sender);
         
-        instance.addFunding(getBNB(3), msg.sender, msg.sender); // 0.003 BNB
+        instance.addFunds(getBNB(3), msg.sender, msg.sender); // 0.003 BNB
         balances[msg.sender] += getBHD(1);
         Assert.equal(instance.balanceOf(msg.sender), balances[msg.sender], "balance ok");
         
-        instance.addFunding(getBNB(3000), msg.sender, msg.sender); // 2 BNB
+        instance.addFunds(getBNB(3000), msg.sender, msg.sender); // 2 BNB
         balances[msg.sender] += getBHD(1000);
         Assert.equal(instance.balanceOf(msg.sender), balances[msg.sender], "balance ok");
     }
@@ -79,7 +79,7 @@ contract BecomeHippiesDividendTest {
     
     function testFunding1() public {
         address account2 = getAccount(2);
-        instance.addFunding(getBNB(30000), account2, account2); // 20 BNB
+        instance.addFunds(getBNB(30000), account2, account2); // 20 BNB
         balances[account2] += getBHD(10000);
         Assert.equal(instance.balanceOf(account2), balances[account2], "balance ok");
     }
@@ -95,7 +95,7 @@ contract BecomeHippiesDividendTest {
     function testSponsorship() public {
         
         address account3 = getAccount(3);
-        instance.addFunding(getBNB(9), account3, msg.sender); // 0.01 BNB
+        instance.addFunds(getBNB(9), account3, msg.sender); // 0.01 BNB
         balances[account3] += getBHD(3);
         Assert.equal(instance.balanceOf(account3), balances[account3], "balance ok");
         
@@ -105,7 +105,7 @@ contract BecomeHippiesDividendTest {
         Assert.equal(instance.balanceOf(msg.sender), balances[msg.sender], "balance ok");
         
         address account4 = getAccount(4);
-        instance.addFunding(getBNB(600), account4, msg.sender); // 0.5 BNB
+        instance.addFunds(getBNB(600), account4, msg.sender); // 0.5 BNB
         balances[account4] += getBHD(200);
         Assert.equal(instance.balanceOf(account4), balances[account4], "balance ok");
         
@@ -125,7 +125,7 @@ contract BecomeHippiesDividendTest {
         uint amount = getAmountFromBHD(supply, 3);
         
         address account5 = getAccount(5);
-        instance.addFunding(amount, account5, account5);
+        instance.addFunds(amount, account5, account5);
         balances[account5] += supply;
         Assert.equal(balances[account5], supply, "balance ok");
         
@@ -133,7 +133,7 @@ contract BecomeHippiesDividendTest {
         
         address account12 = getAccount(12);
         balances[account12] += getBHD(1001);
-        instance.addFunding(getBNB(4003), account12, account12);
+        instance.addFunds(getBNB(4003), account12, account12);
         Assert.equal(instance.balanceOf(account12), balances[account12], "balance 12 ok");
         
         Assert.equal(instance.fundingSupplyOfCurrentRound(), getBHD(11000), "funding supply ok");
@@ -142,7 +142,7 @@ contract BecomeHippiesDividendTest {
     }
     
     function testInvalidAmount() public {
-        try instance.addFunding(getBNB(1000000), msg.sender, msg.sender) {
+        try instance.addFunds(getBNB(1000000), msg.sender, msg.sender) {
             Assert.ok(false, 'Invalid Amount');
         } catch {
             Assert.equal(instance.balanceOf(msg.sender), balances[msg.sender], "balance ok");
@@ -151,7 +151,7 @@ contract BecomeHippiesDividendTest {
     
     function testEndOfFundingRound2() public {
         // 12 000 supply * 0.004 BNB = 48 BNB - 4 BNB = 44 BNB
-        instance.addFunding(getBNB(44000), owner, owner);
+        instance.addFunds(getBNB(44000), owner, owner);
         balances[owner] += 11000 * 10 ** 18;
         Assert.equal(instance.balanceOf(owner), balances[owner], "balance ok");
         Assert.equal(instance.totalSupply(), 24000 * 10 ** 18 + sponsorshipSupply, "total supply ok");
